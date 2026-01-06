@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Car Counter</title>
+    <style>
+        body { 
+            background-color: #222; 
+            color: white; 
+            font-family: 'Segoe UI', sans-serif; 
+            text-align: center; 
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+        }
+        .box {
+            border: 2px solid #444;
+            padding: 20px;
+            border-radius: 10px;
+            background-color: #333;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            max-width: 800px;
+            flex: 1; /* Allow boxes to grow */
+        }
+        /* --- GAUGE STYLES --- */
+        .gauge-container {
+            width: 100%;
+            background-color: #444;
+            border-radius: 20px;
+            height: 30px;
+            margin: 15px 0;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid #555;
+        }
+        .gauge-fill {
+            height: 100%;
+            width: 0%; /* JS updates this */
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            transition: width 0.5s ease-in-out, background 0.5s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(0,0,0,0.6);
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        
+        .big-text { 
+            font-size: 60px; 
+            font-weight: bold; 
+            margin: 10px 0;
+            color: white;
+        }
+        .sub-text { color: #aaa; font-size: 1rem; margin: 0; }
+        .green-text { color: #4CAF50; }
+        .red-text { color: #F44336; }
+
+        .video-container img {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+            border: 2px solid #555;
+        }
+
+        /* --- NEW ANIMATIONS --- */
+        @keyframes blink-red {
+            0% { opacity: 1; color: #ff0000; text-shadow: 0 0 10px red; }
+            50% { opacity: 0.5; color: #800000; text-shadow: none; }
+            100% { opacity: 1; color: #ff0000; text-shadow: 0 0 10px red; }
+        }
+        
+        .alert-full {
+            animation: blink-red 1s infinite; /* Flashes every 1 second */
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        /* --- NEW STYLES FOR SETTINGS --- */
+        .settings-area {
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid #555;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        input[type=number] {
+            background-color: #222;
+            border: 1px solid #555;
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            width: 80px;
+            text-align: center;
+            font-size: 1rem;
+        }
+        button.update-btn {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        button.update-btn:hover {
+            background-color: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <h1>🅿️ Smart Parking Management System</h1>
+    
+    <div class="container">
+        <!-- Card 1: The Capacity Gauge -->
+        <div class="box" style="min-width: 300px;">
+            <h2>Live Capacity</h2>
+            
+            <!-- Occupancy Number -->
+            <div id="occupancy-text" class="big-text">0 / 0</div>
+            <p class="sub-text">Spots Occupied</p>
+
+            <!-- The Progress Bar Gauge -->
+            <div class="gauge-container">
+                <div id="gauge-bar" class="gauge-fill">0%</div>
+            </div>
+
+            <hr style="border-color: #444; margin: 20px 0;">
+
+            <!-- Free Spots Counter -->
+            <div>
+                <p class="sub-text">SPOTS FREE</p>
+                <div id="free-text" style="font-size: 40px; font-weight: bold; color: #4CAF50;">0</div>
+            </div>
+            
+            <!-- Status Message -->
+            <div id="status-message" style="margin-top: 15px; font-weight: bold; font-size: 1.1rem;">Waiting for data...</div>
+            <div id="connection-status" style="color: #4CAF50; font-size: 0.8rem; margin-top: 10px;">● Connected</div>
+
+            <!-- NEW SETTINGS SECTION -->
+            <div class="settings-area">
+                <p class="sub-text" style="font-size: 0.9rem;">ADJUST TOTAL CAPACITY</p>
+                <div class="input-group">
+                    <input type="number" id="new-capacity" placeholder="Total">
+                    <button class="update-btn" onclick="updateCapacity()">Set</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: The Video Feed -->
+        <div class="box">
+            <h2>Live Feed</h2>
+            <div class="video-container">
+                <img src="{{ url_for('video_feed') }}">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateDashboard() {
+            fetch('/data')
+            .then(response => response.json())
+            .then(data => {
+                const count = data.count;
+                const capacity = data.capacity;
+                // Avoid negative numbers if count accidentally exceeds capacity
+                const free = Math.max(0, capacity - count);
+                const percent = Math.min(100, Math.round((count / capacity) * 100));
+
+                // 1. Update Text Numbers
+                document.getElementById('occupancy-text').innerText = `${count} / ${capacity}`;
+                document.getElementById('free-text').innerText = free;
+                
+                // 2. Update Gauge Bar Width & Text
+                const bar = document.getElementById('gauge-bar');
+                bar.style.width = percent + '%';
+                bar.innerText = percent + '%';
+
+                // 3. Update Colors based on fullness
+                const msg = document.getElementById('status-message');
+                
+                // Reset basic styles
+                msg.className = ""; 
+                
+                if (percent >= 100) {
+                    // --- LOT FULL MODE ---
+                    bar.style.background = '#FF0000'; // Solid Red
+                    msg.innerHTML = "⛔ LOT IS FULL ⛔";
+                    msg.className = "alert-full"; // Triggers the flashing animation
+                    msg.style.color = ""; // Let the class handle the color
+                } 
+                else if (percent < 50) {
+                    bar.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)'; // Green
+                    msg.innerText = "LOT HAS SPACE";
+                    msg.style.color = "#4CAF50";
+                } 
+                else if (percent < 85) {
+                    bar.style.background = 'linear-gradient(90deg, #FFC107, #FF9800)'; // Yellow/Orange
+                    msg.innerText = "FILLING UP";
+                    msg.style.color = "#FFC107";
+                } 
+                else {
+                    bar.style.background = 'linear-gradient(90deg, #F44336, #D32F2F)'; // Red
+                    msg.innerText = "LOT NEARLY FULL";
+                    msg.style.color = "#F44336";
+                }
+
+                document.getElementById('connection-status').innerText = "● Connected";
+                document.getElementById('connection-status').style.color = "#4CAF50";
+
+                // Update input placeholder to show current capacity
+                document.getElementById('new-capacity').placeholder = capacity;
+            })
+            .catch(error => {
+                console.log("Connection lost");
+                document.getElementById('connection-status').innerText = "● Disconnected";
+                document.getElementById('connection-status').style.color = "red";
+            });
+        }
+
+        // NEW: Function to send capacity to Python
+        function updateCapacity() {
+            const val = document.getElementById('new-capacity').value;
+            if (!val) return;
+
+            fetch('/set_capacity', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ capacity: parseInt(val) })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.status === "success") {
+                    document.getElementById('new-capacity').value = ""; // Clear box
+                    updateDashboard(); // Refresh immediately
+                } else {
+                    alert("Error updating capacity");
+                }
+            });
+        }
+
+        setInterval(updateDashboard, 1000);
+    </script>
+</body>
+</html>
