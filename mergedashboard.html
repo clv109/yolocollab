@@ -1,0 +1,322 @@
+<!-- HTML file with all previous total cars detected, gauge, live feed with IDs on vehicles, and refreshing ID log for each specific car  -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Car Counter</title>
+    <style>
+        body { 
+            background-color: #222; 
+            color: white; 
+            font-family: 'Segoe UI', sans-serif; 
+            text-align: center; 
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+        }
+        .box {
+            border: 2px solid #444;
+            padding: 20px;
+            border-radius: 10px;
+            background-color: #333;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            max-width: 800px;
+            flex: 1; 
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+        }
+        /* --- GAUGE STYLES --- */
+        .gauge-container {
+            width: 100%;
+            background-color: #444;
+            border-radius: 20px;
+            height: 30px;
+            margin: 15px 0;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid #555;
+        }
+        .gauge-fill {
+            height: 100%;
+            width: 0%; /* JS updates this */
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            transition: width 0.5s ease-in-out, background 0.5s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(0,0,0,0.6);
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        
+        .big-text { 
+            font-size: 60px; 
+            font-weight: bold; 
+            margin: 10px 0;
+            color: white;
+        }
+        .sub-text { color: #aaa; font-size: 1rem; margin: 0; }
+        .green-text { color: #4CAF50; }
+        .red-text { color: #F44336; }
+
+        .video-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            border-radius: 5px;
+            border: 2px solid #555;
+            overflow: hidden;
+        }
+        .video-container img {
+            width: 100%;
+            height: auto;
+            max-height: 500px;
+            object-fit: contain;
+        }
+
+        /* --- NEW: ID LIST STYLES (Matches your theme) --- */
+        .id-list-box {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #252525;
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 15px;
+            text-align: left;
+        }
+        .id-card {
+            background-color: #333;
+            border-left: 4px solid #4fc3f7; /* Blue accent */
+            padding: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 2px;
+            animation: fadeIn 0.5s;
+        }
+        .id-card span { font-weight: bold; font-family: monospace; font-size: 1.1rem; }
+        .empty-msg { color: #666; font-style: italic; text-align: center; margin-top: 20px; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- ANIMATIONS --- */
+        @keyframes blink-red {
+            0% { opacity: 1; color: #ff0000; text-shadow: 0 0 10px red; }
+            50% { opacity: 0.5; color: #800000; text-shadow: none; }
+            100% { opacity: 1; color: #ff0000; text-shadow: 0 0 10px red; }
+        }
+        
+        .alert-full {
+            animation: blink-red 1s infinite; 
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        /* --- SETTINGS AREA --- */
+        .settings-area {
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid #555;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        input[type=number] {
+            background-color: #222;
+            border: 1px solid #555;
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            width: 80px;
+            text-align: center;
+            font-size: 1rem;
+        }
+        button.update-btn {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        button.update-btn:hover {
+            background-color: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <h1>🅿️ Smart Parking Management System</h1>
+    
+    <div class="container">
+        <!-- Card 1: Capacity Gauge & Settings -->
+        <div class="box" style="flex: 1; min-width: 300px;">
+            <h2>Live Capacity</h2>
+            
+            <div id="occupancy-text" class="big-text">0 / 0</div>
+            <p class="sub-text">Spots Occupied</p>
+
+            <div class="gauge-container">
+                <div id="gauge-bar" class="gauge-fill">0%</div>
+            </div>
+
+            <hr style="border-color: #444; margin: 20px 0;">
+
+            <!-- Status Message -->
+            <div id="status-message" style="margin-top: 15px; font-weight: bold; font-size: 1.1rem;">Waiting for data...</div>
+            <div id="connection-status" style="color: #4CAF50; font-size: 0.8rem; margin-top: 10px;">● Connected</div>
+
+            <!-- Settings -->
+            <div class="settings-area">
+                <p class="sub-text" style="font-size: 0.9rem;">ADJUST TOTAL CAPACITY</p>
+                <div class="input-group">
+                    <input type="number" id="new-capacity" placeholder="Total">
+                    <button class="update-btn" onclick="updateCapacity()">Set</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Video Feed -->
+        <div class="box" style="flex: 2;">
+            <h2>Live Feed</h2>
+            <div class="video-container">
+                <img src="{{ url_for('video_feed') }}">
+            </div>
+        </div>
+
+        <!-- Card 3: NEW ID LOGS -->
+        <div class="box" style="flex: 1; min-width: 250px;">
+            <h2>Vehicle Log</h2>
+            <p class="sub-text">Active Tracking IDs</p>
+            
+            <div id="id-list" class="id-list-box">
+                <div class="empty-msg">Scanning...</div>
+            </div>
+            
+            <div style="margin-top: auto; border-top: 1px solid #444; padding-top: 15px;">
+                <p class="sub-text">SPOTS FREE</p>
+                <div id="free-text" style="font-size: 40px; font-weight: bold; color: #4CAF50;">0</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateDashboard() {
+            fetch('/data')
+            .then(response => response.json())
+            .then(data => {
+                const count = data.count;
+                const capacity = data.capacity;
+                const ids = data.ids || []; // Get IDs safely
+                
+                // Avoid negative numbers if count accidentally exceeds capacity
+                const free = Math.max(0, capacity - count);
+                const percent = capacity > 0 ? Math.min(100, Math.round((count / capacity) * 100)) : 0;
+
+                // 1. Update Text Numbers
+                document.getElementById('occupancy-text').innerText = `${count} / ${capacity}`;
+                document.getElementById('free-text').innerText = free;
+                
+                // 2. Update Gauge Bar Width & Text
+                const bar = document.getElementById('gauge-bar');
+                bar.style.width = percent + '%';
+                bar.innerText = percent + '%';
+
+                // 3. Update Colors based on fullness
+                const msg = document.getElementById('status-message');
+                msg.className = ""; 
+                
+                if (percent >= 100) {
+                    bar.style.background = '#FF0000';
+                    msg.innerHTML = "⛔ LOT IS FULL ⛔";
+                    msg.className = "alert-full";
+                    msg.style.color = "";
+                } 
+                else if (percent < 50) {
+                    bar.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
+                    msg.innerText = "LOT HAS SPACE";
+                    msg.style.color = "#4CAF50";
+                } 
+                else if (percent < 85) {
+                    bar.style.background = 'linear-gradient(90deg, #FFC107, #FF9800)';
+                    msg.innerText = "FILLING UP";
+                    msg.style.color = "#FFC107";
+                } 
+                else {
+                    bar.style.background = 'linear-gradient(90deg, #F44336, #D32F2F)';
+                    msg.innerText = "LOT NEARLY FULL";
+                    msg.style.color = "#F44336";
+                }
+
+                document.getElementById('connection-status').innerText = "● Connected";
+                document.getElementById('connection-status').style.color = "#4CAF50";
+                document.getElementById('new-capacity').placeholder = capacity;
+
+                // 4. NEW: Update Vehicle ID List
+                const listDiv = document.getElementById('id-list');
+                if (ids.length === 0) {
+                    listDiv.innerHTML = '<div class="empty-msg">No active vehicles</div>';
+                } else {
+                    let html = '';
+                    ids.forEach(id => {
+                        html += `
+                        <div class="id-card">
+                            <span>Vehicle</span>
+                            <span style="color: #4fc3f7;">ID: ${id}</span>
+                        </div>`;
+                    });
+                    listDiv.innerHTML = html;
+                }
+            })
+            .catch(error => {
+                console.log("Connection lost");
+                document.getElementById('connection-status').innerText = "● Disconnected";
+                document.getElementById('connection-status').style.color = "red";
+            });
+        }
+
+        function updateCapacity() {
+            const val = document.getElementById('new-capacity').value;
+            if (!val) return;
+
+            fetch('/set_capacity', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ capacity: parseInt(val) })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.status === "success") {
+                    document.getElementById('new-capacity').value = ""; // Clear box
+                    updateDashboard(); // Refresh immediately
+                } else {
+                    alert("Error updating capacity");
+                }
+            });
+        }
+
+        setInterval(updateDashboard, 500); // 2 updates per second
+    </script>
+</body>
+</html>
